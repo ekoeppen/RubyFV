@@ -27,7 +27,6 @@ class RubyFocus
     @lines = Array.new
     @current_top = 0
     @current_line = 0
-    @screen_length = 20
   end
   
   def quit
@@ -61,6 +60,7 @@ class RubyFocus
     Curses.init_screen
     Curses.stdscr.keypad(true)
     Curses.curs_set(0)
+    @screen_length = Curses.lines - 6
     init_colors
     begin
       yield
@@ -193,6 +193,18 @@ class RubyFocus
     if @current_top < 0 then @current_top = 0 end
   end
 
+  def to_s
+    r = ""
+    @lines.each do |line|
+      if line.state == 1 then prefix = "+ "
+      elsif line.state == 2 then prefix = "- "
+      else prefix = "  "
+      end
+      r << prefix << line.action << "\n"
+    end
+    return r
+  end
+
   def from_s(string)
     @lines = Array.new
     string.each_line do |line|
@@ -248,6 +260,8 @@ class RubyFocus
   end
   
 end
+
+if File.exist?(ENV["HOME"] + "/.rubyfvrc") then load(ENV["HOME"] + "/.rubyfvrc") end
 
 focus = RubyFocus.load_data
 focus.run
