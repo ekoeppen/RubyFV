@@ -37,22 +37,22 @@ class RubyFocus
     if @use_color
       Curses.start_color
       Curses.init_pair(1, Curses::COLOR_WHITE, Curses::COLOR_BLACK)
-      Curses.init_pair(2, Curses::COLOR_RED, Curses::COLOR_BLACK)
-      Curses.init_pair(3, Curses::COLOR_GREEN, Curses::COLOR_BLACK)
+      Curses.init_pair(2, Curses::COLOR_GREEN, Curses::COLOR_BLACK)
+      Curses.init_pair(3, Curses::COLOR_RED, Curses::COLOR_BLACK)
     end
     set_normal_color
   end
   
   def set_normal_color
-    if @use_color then Curses.stdscr.color_set(1) else Curses.stdscr.attrset(Curses::A_BOLD) end
+    if @use_color then Curses.stdscr.color_set(1) else Curses.stdscr.attrset(Curses::A_DIM) end
+  end
+  
+  def set_preselected_color
+    if @use_color then Curses.stdscr.color_set(2) else Curses.stdscr.attrset(Curses::A_BOLD) end
   end
   
   def set_active_color
-    if @use_color then Curses.stdscr.color_set(2) else Curses.stdscr.attrset(Curses::A_STANDOUT) end
-  end
-  
-  def set_done_color
-    if @use_color then Curses.stdscr.color_set(3) else Curses.stdscr.attrset(Curses::A_DIM) end
+    if @use_color then Curses.stdscr.color_set(3) else Curses.stdscr.attrset(Curses::A_STANDOUT) end
   end
   
   def init_screen
@@ -66,6 +66,16 @@ class RubyFocus
       yield
     ensure
       Curses.close_screen
+    end
+  end
+
+  def remove_current
+    if @lines.length > 0
+      @lines.delete_at(@current_line)
+      if @current_line > @lines.length - 1
+        @current_line = @lines.length - 1
+        if @current_line - @current_top < 0 then @current_top = @current_top - 1 end
+      end
     end
   end
   
@@ -96,32 +106,37 @@ class RubyFocus
   end
 
   def done_action
-     @lines[@current_line].state = 2
+     remove_current
   end
 
-  def toggle_action
+  def toggle_start
+    a = @lines[@current_line]
+    if a.state == 1
+      a.state = 2
+    elsif a.state == 2
+      enter_action(a.action)
+      remove_current
+    end
+  end
+
+  def toggle_preselect
     a = @lines[@current_line]
     if a.state < 2
-      if a.state == 1
-        enter_action(a.action)
-      end
-      a.state = a.state + 1
+      a.state = 1 - a.state
     end
   end
 
   def show_page
-    # Curses.setpos(2, Curses.cols - 15)
-    # Curses.addstr(" " + @current_line.to_s + " " + @current_top.to_s + "   ")
     i = 0
     for l in @lines[@current_top..-1] do
       Curses.setpos(i + 3, 0)
       Curses.addstr(if i == @current_line - @current_top then "-> " else "   " end)
       if l.state == 1
-        set_active_color
+        set_preselected_color
       elsif l.state == 2
-        set_done_color
+        set_active_color
       end
-      Curses.addstr(l.action)
+      Curses.addstr(l.action + " " + l.state.to_s)
       if l.state != 0 then
         set_normal_color
       end
@@ -129,7 +144,7 @@ class RubyFocus
       i = i + 1
       if i > @screen_length then break end
     end
-    while i < @screen_length
+    while i <= @screen_length
       Curses.setpos(i + 3, 0)
       Curses.clrtoeol
       i = i + 1
@@ -151,9 +166,7 @@ class RubyFocus
   
   def previous_line
     if @current_line > 0 then
-      begin
-        @current_line = @current_line - 1
-      end
+      @current_line = @current_line - 1
     else
       @current_line = @lines.length - 1
       @current_top = @lines.length - @screen_length - 1
@@ -250,7 +263,8 @@ class RubyFocus
         when Curses::Key::END then last_line
         when ?e then edit_action
         when ?a then enter_action
-        when ?s then toggle_action
+        when ?p then toggle_preselect
+        when ?s then toggle_start
         when ?d then done_action
         when ?q then done = true
         end
