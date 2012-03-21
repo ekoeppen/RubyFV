@@ -92,6 +92,7 @@ class RubyFocus
     end
     if action.length > 0
       @lines << Line.new(action)
+      save_data
     end
   end
 
@@ -103,19 +104,23 @@ class RubyFocus
     Curses.noecho; Curses.curs_set(0)
     Curses.setpos(0, 0)
     Curses.clrtoeol
+    save_data
   end
 
   def done_action
-     remove_current
+    remove_current
+    save_data
   end
 
   def toggle_start
     a = @lines[@current_line]
     if a.state == 1
       a.state = 2
+      save_data
     elsif a.state == 2
       enter_action(a.action)
       remove_current
+      save_data
     end
   end
 
@@ -123,24 +128,44 @@ class RubyFocus
     a = @lines[@current_line]
     if a.state < 2
       a.state = 1 - a.state
+      save_data
     end
+  end
+
+  def get_preselected_before(line)
+    r = nil
+    i = 0
+    @lines.each do |l|
+      if i <= line and l.state == 1 then r = l end
+      i = i + 1
+    end
+    return r
   end
 
   def show_page
     i = 0
+    Curses.setpos(i + 2, 0)
+    Curses.clrtoeol
     for l in @lines[@current_top..-1] do
       Curses.setpos(i + 3, 0)
+      set_normal_color
       Curses.addstr(if i == @current_line - @current_top then "-> " else "   " end)
       if l.state == 1
         set_preselected_color
       elsif l.state == 2
         set_active_color
       end
-      Curses.addstr(l.action + " " + l.state.to_s)
-      if l.state != 0 then
-        set_normal_color
-      end
+      Curses.addstr(l.action)
       Curses.clrtoeol
+      if i == @current_line - @current_top 
+        p = get_preselected_before(i)
+        if p then
+          Curses.setpos(i + 2, 0)
+          set_preselected_color
+          Curses.addstr("   " + p.action)
+          Curses.clrtoeol
+        end
+      end
       i = i + 1
       if i > @screen_length then break end
     end
@@ -266,6 +291,7 @@ class RubyFocus
         when ?p then toggle_preselect
         when ?s then toggle_start
         when ?d then done_action
+        when ?l then load_data
         when ?q then done = true
         end
       end
